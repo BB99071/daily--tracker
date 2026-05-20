@@ -1,0 +1,553 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="好好生活">
+    <meta name="theme-color" content="#f5f5f7">
+    <link rel="manifest" href="manifest.json">
+    <title>好好生活的周依依</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        :root {
+            --bg: #f5f5f7;
+            --card: #ffffff;
+            --text: #1d1d1f;
+            --sub: #86868b;
+            --accent: #007aff;
+            --green: #34c759;
+            --orange: #ff9500;
+            --purple: #af52de;
+            --red: #ff3b30;
+            --radius: 16px;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            padding: 20px;
+            max-width: 430px;
+            margin: 0 auto;
+        }
+        .header {
+            text-align: center;
+            padding: 20px 0 30px;
+        }
+        .header h1 {
+            font-size: 28px;
+            font-weight: 700;
+        }
+        .header .date {
+            color: var(--sub);
+            font-size: 14px;
+            margin-top: 4px;
+        }
+
+        /* Main Grid */
+        .grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 14px;
+        }
+        .card {
+            background: var(--card);
+            border-radius: var(--radius);
+            padding: 20px;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+            position: relative;
+            overflow: hidden;
+        }
+        .card:active { transform: scale(0.96); }
+        .card .icon { font-size: 32px; margin-bottom: 10px; }
+        .card .label { font-size: 13px; color: var(--sub); margin-bottom: 4px; }
+        .card .value { font-size: 22px; font-weight: 600; }
+        .card .status { font-size: 13px; margin-top: 6px; }
+        .card .status.done { color: var(--green); }
+        .card .status.undone { color: var(--red); }
+
+        /* Modal / Page */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.3);
+            z-index: 100;
+            justify-content: center;
+            align-items: flex-end;
+        }
+        .modal-overlay.active { display: flex; }
+        .modal {
+            background: var(--card);
+            border-radius: 20px 20px 0 0;
+            width: 100%;
+            max-width: 430px;
+            max-height: 85vh;
+            overflow-y: auto;
+            padding: 24px 20px 40px;
+            animation: slideUp 0.3s ease;
+        }
+        @keyframes slideUp {
+            from { transform: translateY(100%); }
+            to { transform: translateY(0); }
+        }
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        .modal-header h2 { font-size: 20px; font-weight: 600; }
+        .modal-close {
+            width: 30px; height: 30px;
+            border-radius: 50%;
+            background: var(--bg);
+            border: none;
+            font-size: 18px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        /* Form elements */
+        .input-group { margin-bottom: 16px; }
+        .input-group label {
+            display: block;
+            font-size: 13px;
+            color: var(--sub);
+            margin-bottom: 6px;
+        }
+        .input-group input, .input-group select {
+            width: 100%;
+            padding: 12px 14px;
+            border: 1px solid #e5e5ea;
+            border-radius: 10px;
+            font-size: 16px;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+        .input-group input:focus { border-color: var(--accent); }
+        .btn {
+            width: 100%;
+            padding: 14px;
+            border: none;
+            border-radius: 12px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: opacity 0.2s;
+        }
+        .btn:active { opacity: 0.7; }
+        .btn-primary { background: var(--accent); color: white; }
+        .btn-green { background: var(--green); color: white; }
+        .btn-outline {
+            background: transparent;
+            border: 1px solid #e5e5ea;
+            color: var(--text);
+        }
+
+        /* Weight Chart */
+        .chart-container {
+            width: 100%;
+            height: 200px;
+            margin: 16px 0;
+            position: relative;
+        }
+        .chart-container canvas { width: 100%; height: 100%; }
+
+
+        /* History */
+        .history-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 0;
+            border-bottom: 1px solid #f0f0f0;
+        }
+        .history-item .date-text { font-size: 14px; color: var(--sub); }
+        .history-item .check { color: var(--green); font-size: 18px; }
+
+        .goal-display {
+            text-align: center;
+            padding: 12px;
+            background: var(--bg);
+            border-radius: 10px;
+            margin-bottom: 16px;
+            font-size: 14px;
+            color: var(--sub);
+        }
+        .goal-display strong { color: var(--text); font-size: 18px; }
+
+        .empty-state {
+            text-align: center;
+            padding: 40px 20px;
+            color: var(--sub);
+            font-size: 14px;
+        }
+
+        .delete-btn {
+            color: var(--red);
+            background: none;
+            border: none;
+            font-size: 14px;
+            cursor: pointer;
+            padding: 4px 8px;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>好好生活的周依依</h1>
+        <div class="date" id="today-date"></div>
+    </div>
+
+    <div class="grid">
+        <div class="card" onclick="openModal('weight')">
+            <div class="icon">⚖️</div>
+            <div class="label">今日体重</div>
+            <div class="value" id="card-weight">--</div>
+            <div class="status" id="card-weight-status"></div>
+        </div>
+        <div class="card" onclick="openModal('english')">
+            <div class="icon">📖</div>
+            <div class="label">英语</div>
+            <div class="value" id="card-english">--</div>
+            <div class="status" id="card-english-status"></div>
+        </div>
+        <div class="card" onclick="openModal('exercise')">
+            <div class="icon">💪</div>
+            <div class="label">运动</div>
+            <div class="value" id="card-exercise">--</div>
+            <div class="status" id="card-exercise-status"></div>
+        </div>
+    </div>
+
+    <!-- Weight Modal -->
+    <div class="modal-overlay" id="modal-weight">
+        <div class="modal">
+            <div class="modal-header">
+                <h2>⚖️ 体重</h2>
+                <button class="modal-close" onclick="closeModal('weight')">&times;</button>
+            </div>
+            <div class="goal-display" id="weight-goal-display">
+                目标体重：<strong id="weight-goal-value">未设置</strong>
+            </div>
+            <div class="input-group">
+                <label>今日体重 (斤)</label>
+                <input type="number" step="0.1" id="weight-input" placeholder="例如：141">
+            </div>
+            <button class="btn btn-primary" onclick="saveWeight()" style="margin-bottom:12px">记录体重</button>
+            <div class="input-group">
+                <label>设置目标体重 (斤)</label>
+                <input type="number" step="0.1" id="weight-goal-input" placeholder="例如：130">
+            </div>
+            <button class="btn btn-outline" onclick="saveWeightGoal()" style="margin-bottom:20px">更新目标</button>
+            <h3 style="font-size:15px;margin-bottom:10px">体重变化趋势</h3>
+            <div class="chart-container">
+                <canvas id="weight-chart"></canvas>
+            </div>
+        </div>
+    </div>
+
+
+    <!-- English Modal -->
+    <div class="modal-overlay" id="modal-english">
+        <div class="modal">
+            <div class="modal-header">
+                <h2>📖 英语</h2>
+                <button class="modal-close" onclick="closeModal('english')">&times;</button>
+            </div>
+            <button class="btn btn-green" id="english-btn" onclick="toggleEnglish()">今日打卡</button>
+            <h3 style="font-size:15px;margin:20px 0 10px">打卡记录</h3>
+            <div id="english-history"></div>
+        </div>
+    </div>
+
+    <!-- Exercise Modal -->
+    <div class="modal-overlay" id="modal-exercise">
+        <div class="modal">
+            <div class="modal-header">
+                <h2>💪 运动</h2>
+                <button class="modal-close" onclick="closeModal('exercise')">&times;</button>
+            </div>
+            <button class="btn btn-green" id="exercise-btn" onclick="toggleExercise()">今日打卡</button>
+            <h3 style="font-size:15px;margin:20px 0 10px">打卡记录</h3>
+            <div id="exercise-history"></div>
+        </div>
+    </div>
+
+    <script>
+    // ========== Utilities ==========
+    const today = () => new Date().toISOString().split('T')[0];
+    const getStore = (key) => JSON.parse(localStorage.getItem(key) || 'null');
+    const setStore = (key, val) => localStorage.setItem(key, JSON.stringify(val));
+
+    // Display today's date
+    document.getElementById('today-date').textContent = new Date().toLocaleDateString('zh-CN', {
+        year: 'numeric', month: 'long', day: 'numeric', weekday: 'long'
+    });
+
+    // ========== Modal Control ==========
+    function openModal(type) {
+        document.getElementById(`modal-${type}`).classList.add('active');
+        if (type === 'weight') renderWeightChart();
+        if (type === 'english') renderEnglishHistory();
+        if (type === 'exercise') renderExerciseHistory();
+    }
+    function closeModal(type) {
+        document.getElementById(`modal-${type}`).classList.remove('active');
+    }
+    // Close modal on overlay click
+    document.querySelectorAll('.modal-overlay').forEach(el => {
+        el.addEventListener('click', (e) => {
+            if (e.target === el) el.classList.remove('active');
+        });
+    });
+
+    // ========== Weight Module ==========
+    function saveWeight() {
+        const val = parseFloat(document.getElementById('weight-input').value);
+        if (isNaN(val) || val <= 0) return alert('请输入有效体重');
+        const data = getStore('weights') || {};
+        data[today()] = val;
+        setStore('weights', data);
+        document.getElementById('weight-input').value = '';
+        updateCards();
+        renderWeightChart();
+    }
+    function saveWeightGoal() {
+        const val = parseFloat(document.getElementById('weight-goal-input').value);
+        if (isNaN(val) || val <= 0) return alert('请输入有效目标体重');
+        setStore('weightGoal', val);
+        document.getElementById('weight-goal-input').value = '';
+        updateWeightGoalDisplay();
+    }
+    function updateWeightGoalDisplay() {
+        const goal = getStore('weightGoal');
+        document.getElementById('weight-goal-value').textContent = goal ? `${goal} 斤` : '未设置';
+    }
+    function renderWeightChart() {
+        updateWeightGoalDisplay();
+        const canvas = document.getElementById('weight-chart');
+        const ctx = canvas.getContext('2d');
+        const dpr = window.devicePixelRatio || 1;
+        canvas.width = canvas.offsetWidth * dpr;
+        canvas.height = canvas.offsetHeight * dpr;
+        ctx.scale(dpr, dpr);
+        const w = canvas.offsetWidth, h = canvas.offsetHeight;
+        ctx.clearRect(0, 0, w, h);
+
+        const data = getStore('weights') || {};
+        const entries = Object.entries(data).sort((a, b) => a[0].localeCompare(b[0])).slice(-30);
+        if (entries.length < 2) {
+            ctx.fillStyle = '#86868b';
+            ctx.font = '14px -apple-system';
+            ctx.textAlign = 'center';
+            ctx.fillText('至少需要2天数据才能绘制曲线', w/2, h/2);
+            return;
+        }
+
+        const values = entries.map(e => e[1]);
+        const min = Math.min(...values) - 1;
+        const max = Math.max(...values) + 1;
+        const padX = 40, padY = 20;
+        const chartW = w - padX * 2, chartH = h - padY * 2;
+
+        // Grid lines
+        ctx.strokeStyle = '#f0f0f0';
+        ctx.lineWidth = 1;
+        for (let i = 0; i <= 4; i++) {
+            const y = padY + (chartH / 4) * i;
+            ctx.beginPath(); ctx.moveTo(padX, y); ctx.lineTo(w - padX, y); ctx.stroke();
+            ctx.fillStyle = '#86868b';
+            ctx.font = '11px -apple-system';
+            ctx.textAlign = 'right';
+            ctx.fillText((max - (max - min) / 4 * i).toFixed(1), padX - 6, y + 4);
+        }
+
+        // Goal line
+        const goal = getStore('weightGoal');
+        if (goal && goal >= min && goal <= max) {
+            const goalY = padY + chartH - ((goal - min) / (max - min)) * chartH;
+            ctx.strokeStyle = '#ff3b30';
+            ctx.lineWidth = 1;
+            ctx.setLineDash([4, 4]);
+            ctx.beginPath(); ctx.moveTo(padX, goalY); ctx.lineTo(w - padX, goalY); ctx.stroke();
+            ctx.setLineDash([]);
+            ctx.fillStyle = '#ff3b30';
+            ctx.font = '10px -apple-system';
+            ctx.textAlign = 'left';
+            ctx.fillText(`目标 ${goal}`, w - padX + 4, goalY + 3);
+        }
+
+        // Line
+        ctx.strokeStyle = '#007aff';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        entries.forEach((entry, i) => {
+            const x = padX + (i / (entries.length - 1)) * chartW;
+            const y = padY + chartH - ((entry[1] - min) / (max - min)) * chartH;
+            if (i === 0) ctx.moveTo(x, y);
+            else ctx.lineTo(x, y);
+        });
+        ctx.stroke();
+
+        // Dots
+        entries.forEach((entry, i) => {
+            const x = padX + (i / (entries.length - 1)) * chartW;
+            const y = padY + chartH - ((entry[1] - min) / (max - min)) * chartH;
+            ctx.beginPath();
+            ctx.arc(x, y, 4, 0, Math.PI * 2);
+            ctx.fillStyle = '#007aff';
+            ctx.fill();
+        });
+    }
+
+
+    // ========== English Module ==========
+    function toggleEnglish() {
+        const data = getStore('english') || {};
+        if (data[today()]) {
+            delete data[today()];
+        } else {
+            data[today()] = true;
+        }
+        setStore('english', data);
+        updateCards();
+        renderEnglishHistory();
+        updateEnglishBtn();
+    }
+    function updateEnglishBtn() {
+        const data = getStore('english') || {};
+        const btn = document.getElementById('english-btn');
+        if (data[today()]) {
+            btn.textContent = '取消打卡';
+            btn.classList.remove('btn-green');
+            btn.classList.add('btn-outline');
+        } else {
+            btn.textContent = '今日打卡';
+            btn.classList.remove('btn-outline');
+            btn.classList.add('btn-green');
+        }
+    }
+    function renderEnglishHistory() {
+        updateEnglishBtn();
+        const data = getStore('english') || {};
+        const days = Object.keys(data).filter(k => data[k]).sort().reverse().slice(0, 30);
+        const container = document.getElementById('english-history');
+        if (days.length === 0) {
+            container.innerHTML = '<div class="empty-state">暂无打卡记录</div>';
+            return;
+        }
+        container.innerHTML = days.map(d => `
+            <div class="history-item">
+                <span class="date-text">${d}</span>
+                <span class="check">✓</span>
+            </div>
+        `).join('');
+    }
+
+    // ========== Exercise Module ==========
+    function toggleExercise() {
+        const data = getStore('exercise') || {};
+        if (data[today()]) {
+            delete data[today()];
+        } else {
+            data[today()] = true;
+        }
+        setStore('exercise', data);
+        updateCards();
+        renderExerciseHistory();
+        updateExerciseBtn();
+    }
+    function updateExerciseBtn() {
+        const data = getStore('exercise') || {};
+        const btn = document.getElementById('exercise-btn');
+        if (data[today()]) {
+            btn.textContent = '取消打卡';
+            btn.classList.remove('btn-green');
+            btn.classList.add('btn-outline');
+        } else {
+            btn.textContent = '今日打卡';
+            btn.classList.remove('btn-outline');
+            btn.classList.add('btn-green');
+        }
+    }
+    function renderExerciseHistory() {
+        updateExerciseBtn();
+        const data = getStore('exercise') || {};
+        const days = Object.keys(data).filter(k => data[k]).sort().reverse().slice(0, 30);
+        const container = document.getElementById('exercise-history');
+        if (days.length === 0) {
+            container.innerHTML = '<div class="empty-state">暂无打卡记录</div>';
+            return;
+        }
+        container.innerHTML = days.map(d => `
+            <div class="history-item">
+                <span class="date-text">${d}</span>
+                <span class="check">✓</span>
+            </div>
+        `).join('');
+    }
+
+    // ========== Update Cards ==========
+    function updateCards() {
+        // Weight
+        const weights = getStore('weights') || {};
+        const todayWeight = weights[today()];
+        document.getElementById('card-weight').textContent = todayWeight ? `${todayWeight} 斤` : '--';
+        const goal = getStore('weightGoal');
+        const ws = document.getElementById('card-weight-status');
+        if (todayWeight && goal) {
+            const diff = (todayWeight - goal).toFixed(1);
+            ws.textContent = diff > 0 ? `距目标 -${diff}斤` : '已达目标 🎉';
+            ws.className = 'status ' + (diff > 0 ? 'undone' : 'done');
+        } else {
+            ws.textContent = todayWeight ? '已记录' : '未记录';
+            ws.className = 'status ' + (todayWeight ? 'done' : 'undone');
+        }
+
+        // English
+        const english = getStore('english') || {};
+        const engDone = !!english[today()];
+        document.getElementById('card-english').textContent = engDone ? '已打卡' : '未打卡';
+        const es = document.getElementById('card-english-status');
+        const engStreak = calcStreak('english');
+        es.textContent = engStreak > 0 ? `连续 ${engStreak} 天` : '';
+        es.className = 'status done';
+        document.getElementById('card-english').parentElement.style.borderLeft = engDone ? '4px solid var(--green)' : '4px solid transparent';
+
+        // Exercise
+        const exercise = getStore('exercise') || {};
+        const exDone = !!exercise[today()];
+        document.getElementById('card-exercise').textContent = exDone ? '已打卡' : '未打卡';
+        const exs = document.getElementById('card-exercise-status');
+        const exStreak = calcStreak('exercise');
+        exs.textContent = exStreak > 0 ? `连续 ${exStreak} 天` : '';
+        exs.className = 'status done';
+        document.getElementById('card-exercise').parentElement.style.borderLeft = exDone ? '4px solid var(--green)' : '4px solid transparent';
+    }
+
+    function calcStreak(key) {
+        const data = getStore(key) || {};
+        let streak = 0;
+        let d = new Date();
+        while (true) {
+            const ds = d.toISOString().split('T')[0];
+            if (data[ds]) {
+                streak++;
+                d.setDate(d.getDate() - 1);
+            } else break;
+        }
+        return streak;
+    }
+
+    // Init
+    updateCards();
+    </script>
+</body>
+</html>
