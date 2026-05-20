@@ -159,18 +159,6 @@
         }
         .chart-container canvas { width: 100%; height: 100%; }
 
-
-        /* History */
-        .history-item {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 12px 0;
-            border-bottom: 1px solid #f0f0f0;
-        }
-        .history-item .date-text { font-size: 14px; color: var(--sub); }
-        .history-item .check { color: var(--green); font-size: 18px; }
-
         .goal-display {
             text-align: center;
             padding: 12px;
@@ -189,13 +177,65 @@
             font-size: 14px;
         }
 
-        .delete-btn {
-            color: var(--red);
-            background: none;
+        /* Calendar Styles */
+        .calendar-nav {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+        .calendar-nav .month-title {
+            font-size: 16px;
+            font-weight: 600;
+        }
+        .calendar-nav button {
+            background: var(--bg);
             border: none;
-            font-size: 14px;
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            font-size: 16px;
             cursor: pointer;
-            padding: 4px 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .calendar-nav button:active { opacity: 0.6; }
+        .calendar-grid {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            gap: 4px;
+            text-align: center;
+        }
+        .calendar-grid .weekday {
+            font-size: 11px;
+            color: var(--sub);
+            padding: 8px 0;
+            font-weight: 500;
+        }
+        .calendar-grid .day {
+            aspect-ratio: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+            font-size: 14px;
+            color: var(--text);
+            position: relative;
+        }
+        .calendar-grid .day.empty {
+            color: transparent;
+        }
+        .calendar-grid .day.checked {
+            background: var(--green);
+            color: white;
+            font-weight: 600;
+        }
+        .calendar-grid .day.today {
+            border: 2px solid var(--accent);
+        }
+        .calendar-grid .day.other-month {
+            color: #ccc;
         }
     </style>
 </head>
@@ -253,7 +293,6 @@
         </div>
     </div>
 
-
     <!-- English Modal -->
     <div class="modal-overlay" id="modal-english">
         <div class="modal">
@@ -263,7 +302,12 @@
             </div>
             <button class="btn btn-green" id="english-btn" onclick="toggleEnglish()">今日打卡</button>
             <h3 style="font-size:15px;margin:20px 0 10px">打卡记录</h3>
-            <div id="english-history"></div>
+            <div class="calendar-nav">
+                <button onclick="changeMonth('english', -1)">‹</button>
+                <span class="month-title" id="english-month-title"></span>
+                <button onclick="changeMonth('english', 1)">›</button>
+            </div>
+            <div class="calendar-grid" id="english-calendar"></div>
         </div>
     </div>
 
@@ -276,7 +320,12 @@
             </div>
             <button class="btn btn-green" id="exercise-btn" onclick="toggleExercise()">今日打卡</button>
             <h3 style="font-size:15px;margin:20px 0 10px">打卡记录</h3>
-            <div id="exercise-history"></div>
+            <div class="calendar-nav">
+                <button onclick="changeMonth('exercise', -1)">‹</button>
+                <span class="month-title" id="exercise-month-title"></span>
+                <button onclick="changeMonth('exercise', 1)">›</button>
+            </div>
+            <div class="calendar-grid" id="exercise-calendar"></div>
         </div>
     </div>
 
@@ -291,17 +340,22 @@
         year: 'numeric', month: 'long', day: 'numeric', weekday: 'long'
     });
 
+    // Track current calendar month for each module
+    let calendarState = {
+        english: { year: new Date().getFullYear(), month: new Date().getMonth() },
+        exercise: { year: new Date().getFullYear(), month: new Date().getMonth() }
+    };
+
     // ========== Modal Control ==========
     function openModal(type) {
         document.getElementById(`modal-${type}`).classList.add('active');
         if (type === 'weight') renderWeightChart();
-        if (type === 'english') renderEnglishHistory();
-        if (type === 'exercise') renderExerciseHistory();
+        if (type === 'english') renderCalendar('english');
+        if (type === 'exercise') renderCalendar('exercise');
     }
     function closeModal(type) {
         document.getElementById(`modal-${type}`).classList.remove('active');
     }
-    // Close modal on overlay click
     document.querySelectorAll('.modal-overlay').forEach(el => {
         el.addEventListener('click', (e) => {
             if (e.target === el) el.classList.remove('active');
@@ -357,7 +411,6 @@
         const padX = 40, padY = 20;
         const chartW = w - padX * 2, chartH = h - padY * 2;
 
-        // Grid lines
         ctx.strokeStyle = '#f0f0f0';
         ctx.lineWidth = 1;
         for (let i = 0; i <= 4; i++) {
@@ -369,7 +422,6 @@
             ctx.fillText((max - (max - min) / 4 * i).toFixed(1), padX - 6, y + 4);
         }
 
-        // Goal line
         const goal = getStore('weightGoal');
         if (goal && goal >= min && goal <= max) {
             const goalY = padY + chartH - ((goal - min) / (max - min)) * chartH;
@@ -384,7 +436,6 @@
             ctx.fillText(`目标 ${goal}`, w - padX + 4, goalY + 3);
         }
 
-        // Line
         ctx.strokeStyle = '#007aff';
         ctx.lineWidth = 2;
         ctx.beginPath();
@@ -396,7 +447,6 @@
         });
         ctx.stroke();
 
-        // Dots
         entries.forEach((entry, i) => {
             const x = padX + (i / (entries.length - 1)) * chartW;
             const y = padY + chartH - ((entry[1] - min) / (max - min)) * chartH;
@@ -407,6 +457,57 @@
         });
     }
 
+    // ========== Calendar Module ==========
+    function changeMonth(type, delta) {
+        calendarState[type].month += delta;
+        if (calendarState[type].month > 11) {
+            calendarState[type].month = 0;
+            calendarState[type].year++;
+        } else if (calendarState[type].month < 0) {
+            calendarState[type].month = 11;
+            calendarState[type].year--;
+        }
+        renderCalendar(type);
+    }
+
+    function renderCalendar(type) {
+        if (type === 'english') updateEnglishBtn();
+        if (type === 'exercise') updateExerciseBtn();
+
+        const { year, month } = calendarState[type];
+        const data = getStore(type) || {};
+        const todayStr = today();
+
+        const monthNames = ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
+        document.getElementById(`${type}-month-title`).textContent = `${year}年${monthNames[month]}`;
+
+        const container = document.getElementById(`${type}-calendar`);
+        let html = '';
+
+        const weekdays = ['日','一','二','三','四','五','六'];
+        weekdays.forEach(d => {
+            html += `<div class="weekday">${d}</div>`;
+        });
+
+        const firstDay = new Date(year, month, 1).getDay();
+        const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+        for (let i = 0; i < firstDay; i++) {
+            html += '<div class="day empty"></div>';
+        }
+
+        for (let d = 1; d <= daysInMonth; d++) {
+            const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+            const isChecked = !!data[dateStr];
+            const isToday = dateStr === todayStr;
+            let classes = 'day';
+            if (isChecked) classes += ' checked';
+            if (isToday) classes += ' today';
+            html += `<div class="${classes}">${d}</div>`;
+        }
+
+        container.innerHTML = html;
+    }
 
     // ========== English Module ==========
     function toggleEnglish() {
@@ -418,8 +519,7 @@
         }
         setStore('english', data);
         updateCards();
-        renderEnglishHistory();
-        updateEnglishBtn();
+        renderCalendar('english');
     }
     function updateEnglishBtn() {
         const data = getStore('english') || {};
@@ -434,22 +534,6 @@
             btn.classList.add('btn-green');
         }
     }
-    function renderEnglishHistory() {
-        updateEnglishBtn();
-        const data = getStore('english') || {};
-        const days = Object.keys(data).filter(k => data[k]).sort().reverse().slice(0, 30);
-        const container = document.getElementById('english-history');
-        if (days.length === 0) {
-            container.innerHTML = '<div class="empty-state">暂无打卡记录</div>';
-            return;
-        }
-        container.innerHTML = days.map(d => `
-            <div class="history-item">
-                <span class="date-text">${d}</span>
-                <span class="check">✓</span>
-            </div>
-        `).join('');
-    }
 
     // ========== Exercise Module ==========
     function toggleExercise() {
@@ -461,8 +545,7 @@
         }
         setStore('exercise', data);
         updateCards();
-        renderExerciseHistory();
-        updateExerciseBtn();
+        renderCalendar('exercise');
     }
     function updateExerciseBtn() {
         const data = getStore('exercise') || {};
@@ -476,22 +559,6 @@
             btn.classList.remove('btn-outline');
             btn.classList.add('btn-green');
         }
-    }
-    function renderExerciseHistory() {
-        updateExerciseBtn();
-        const data = getStore('exercise') || {};
-        const days = Object.keys(data).filter(k => data[k]).sort().reverse().slice(0, 30);
-        const container = document.getElementById('exercise-history');
-        if (days.length === 0) {
-            container.innerHTML = '<div class="empty-state">暂无打卡记录</div>';
-            return;
-        }
-        container.innerHTML = days.map(d => `
-            <div class="history-item">
-                <span class="date-text">${d}</span>
-                <span class="check">✓</span>
-            </div>
-        `).join('');
     }
 
     // ========== Update Cards ==========
@@ -516,8 +583,8 @@
         const engDone = !!english[today()];
         document.getElementById('card-english').textContent = engDone ? '已打卡' : '未打卡';
         const es = document.getElementById('card-english-status');
-        const engStreak = calcStreak('english');
-        es.textContent = engStreak > 0 ? `连续 ${engStreak} 天` : '';
+        const engMonthCount = calcMonthCount('english');
+        es.textContent = engDone ? `本月累计 ${engMonthCount} 天` : '';
         es.className = 'status done';
         document.getElementById('card-english').parentElement.style.borderLeft = engDone ? '4px solid var(--green)' : '4px solid transparent';
 
@@ -526,24 +593,26 @@
         const exDone = !!exercise[today()];
         document.getElementById('card-exercise').textContent = exDone ? '已打卡' : '未打卡';
         const exs = document.getElementById('card-exercise-status');
-        const exStreak = calcStreak('exercise');
-        exs.textContent = exStreak > 0 ? `连续 ${exStreak} 天` : '';
+        const exMonthCount = calcMonthCount('exercise');
+        exs.textContent = exDone ? `本月累计 ${exMonthCount} 天` : '';
         exs.className = 'status done';
         document.getElementById('card-exercise').parentElement.style.borderLeft = exDone ? '4px solid var(--green)' : '4px solid transparent';
     }
 
-    function calcStreak(key) {
+    function calcMonthCount(key) {
         const data = getStore(key) || {};
-        let streak = 0;
-        let d = new Date();
-        while (true) {
-            const ds = d.toISOString().split('T')[0];
-            if (data[ds]) {
-                streak++;
-                d.setDate(d.getDate() - 1);
-            } else break;
+        const now = new Date();
+        const year = now.getFullYear();
+        const month = now.getMonth();
+        let count = 0;
+        for (const [dateStr, val] of Object.entries(data)) {
+            if (!val) continue;
+            const d = new Date(dateStr);
+            if (d.getFullYear() === year && d.getMonth() === month) {
+                count++;
+            }
         }
-        return streak;
+        return count;
     }
 
     // Init
