@@ -151,10 +151,37 @@
         }
 
         /* Weight Chart */
+        .chart-wrapper {
+            position: relative;
+            margin: 16px 0;
+        }
+        .chart-nav {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        .chart-nav .range-title {
+            font-size: 13px;
+            color: var(--sub);
+        }
+        .chart-nav button {
+            background: var(--bg);
+            border: none;
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            font-size: 15px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .chart-nav button:active { opacity: 0.6; }
+        .chart-nav button:disabled { opacity: 0.3; cursor: default; }
         .chart-container {
             width: 100%;
             height: 200px;
-            margin: 16px 0;
             position: relative;
         }
         .chart-container canvas { width: 100%; height: 100%; }
@@ -287,8 +314,15 @@
             </div>
             <button class="btn btn-outline" onclick="saveWeightGoal()" style="margin-bottom:20px">更新目标</button>
             <h3 style="font-size:15px;margin-bottom:10px">体重变化趋势</h3>
-            <div class="chart-container">
-                <canvas id="weight-chart"></canvas>
+            <div class="chart-wrapper">
+                <div class="chart-nav">
+                    <button onclick="changeChartRange(-1)" id="chart-prev">‹</button>
+                    <span class="range-title" id="chart-range-title"></span>
+                    <button onclick="changeChartRange(1)" id="chart-next">›</button>
+                </div>
+                <div class="chart-container">
+                    <canvas id="weight-chart"></canvas>
+                </div>
             </div>
         </div>
     </div>
@@ -346,10 +380,13 @@
         exercise: { year: new Date().getFullYear(), month: new Date().getMonth() }
     };
 
+    // Chart pagination state: offset in pages of 7 days (0 = latest)
+    let chartPage = 0;
+
     // ========== Modal Control ==========
     function openModal(type) {
         document.getElementById(`modal-${type}`).classList.add('active');
-        if (type === 'weight') renderWeightChart();
+        if (type === 'weight') { chartPage = 0; renderWeightChart(); }
         if (type === 'english') renderCalendar('english');
         if (type === 'exercise') renderCalendar('exercise');
     }
@@ -384,6 +421,15 @@
         const goal = getStore('weightGoal');
         document.getElementById('weight-goal-value').textContent = goal ? `${goal} 斤` : '未设置';
     }
+
+    function changeChartRange(delta) {
+        const data = getStore('weights') || {};
+        const allEntries = Object.entries(data).sort((a, b) => a[0].localeCompare(b[0]));
+        const maxPages = Math.max(0, Math.ceil(allEntries.length / 7) - 1);
+        chartPage = Math.max(0, Math.min(maxPages, chartPage - delta));
+        renderWeightChart();
+    }
+
     function renderWeightChart() {
         updateWeightGoalDisplay();
         const canvas = document.getElementById('weight-chart');
@@ -396,7 +442,27 @@
         ctx.clearRect(0, 0, w, h);
 
         const data = getStore('weights') || {};
-        const entries = Object.entries(data).sort((a, b) => a[0].localeCompare(b[0])).slice(-30);
+        const allEntries = Object.entries(data).sort((a, b) => a[0].localeCompare(b[0]));
+        const maxPages = Math.max(0, Math.ceil(allEntries.length / 7) - 1);
+
+        // Get 7-day window based on current page
+        const endIdx = allEntries.length - (chartPage * 7);
+        const startIdx = Math.max(0, endIdx - 7);
+        const entries = allEntries.slice(startIdx, endIdx);
+
+        // Update nav buttons
+        document.getElementById('chart-prev').disabled = chartPage >= maxPages;
+        document.getElementById('chart-next').disabled = chartPage <= 0;
+
+        // Update range title
+        if (entries.length > 0) {
+            const startDate = entries[0][0].slice(5).replace('-', '/');
+            const endDate = entries[entries.length - 1][0].slice(5).replace('-', '/');
+            document.getElementById('chart-range-title').textContent = `${startDate} - ${endDate}`;
+        } else {
+            document.getElementById('chart-range-title').textContent = '';
+        }
+
         if (entries.length < 2) {
             ctx.fillStyle = '#86868b';
             ctx.font = '14px -apple-system';
@@ -408,9 +474,10 @@
         const values = entries.map(e => e[1]);
         const min = Math.min(...values) - 1;
         const max = Math.max(...values) + 1;
-        const padX = 40, padY = 20;
-        const chartW = w - padX * 2, chartH = h - padY * 2;
+        const padX = 40, padY = 20, padBottom = 30;
+        const chartW = w - padX * 2, chartH = h - padY - padBottom;
 
+        // Grid lines
         ctx.strokeStyle = '#f0f0f0';
         ctx.lineWidth = 1;
         for (let i = 0; i <= 4; i++) {
@@ -422,6 +489,7 @@
             ctx.fillText((max - (max - min) / 4 * i).toFixed(1), padX - 6, y + 4);
         }
 
+        // Goal line
         const goal = getStore('weightGoal');
         if (goal && goal >= min && goal <= max) {
             const goalY = padY + chartH - ((goal - min) / (max - min)) * chartH;
@@ -436,8 +504,9 @@
             ctx.fillText(`目标 ${goal}`, w - padX + 4, goalY + 3);
         }
 
+        // Line
         ctx.strokeStyle = '#007aff';
-        ctx.lineWidth = 2;
+        ctx.lineWidth = 2.5;
         ctx.beginPath();
         entries.forEach((entry, i) => {
             const x = padX + (i / (entries.length - 1)) * chartW;
@@ -447,13 +516,25 @@
         });
         ctx.stroke();
 
+        // Dots + date labels
         entries.forEach((entry, i) => {
             const x = padX + (i / (entries.length - 1)) * chartW;
             const y = padY + chartH - ((entry[1] - min) / (max - min)) * chartH;
             ctx.beginPath();
-            ctx.arc(x, y, 4, 0, Math.PI * 2);
+            ctx.arc(x, y, 5, 0, Math.PI * 2);
             ctx.fillStyle = '#007aff';
             ctx.fill();
+            ctx.beginPath();
+            ctx.arc(x, y, 2.5, 0, Math.PI * 2);
+            ctx.fillStyle = '#fff';
+            ctx.fill();
+
+            // Date label below
+            ctx.fillStyle = '#86868b';
+            ctx.font = '10px -apple-system';
+            ctx.textAlign = 'center';
+            const dateLabel = entry[0].slice(8).replace(/^0/, '') + '日';
+            ctx.fillText(dateLabel, x, h - 8);
         });
     }
 
